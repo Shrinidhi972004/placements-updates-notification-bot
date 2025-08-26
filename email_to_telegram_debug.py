@@ -2,6 +2,7 @@ import imaplib
 import email
 import requests
 import time
+import os  # ✅ added
 
 # --- Config ---
 print("🚀 Script started")
@@ -17,16 +18,24 @@ last_seen_id = None
 def send_to_group(message: str):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = {"chat_id": GROUP_CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    r = requests.post(url, data=data)
-    print(f"➡️ Sent to group {GROUP_CHAT_ID}, Response:", r.json())
+    try:
+        r = requests.post(url, data=data, timeout=10)
+        print(f"➡️ Sent to group {GROUP_CHAT_ID}, Response:", r.json())
+    except Exception as e:
+        print(f"❌ Failed to send to Telegram: {e}")
 
 def check_email():
     global last_seen_id
-    mail = imaplib.IMAP4_SSL(IMAP_SERVER)
-    mail.login(EMAIL_ACCOUNT, PASSWORD)
-    mail.select("inbox")
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail.login(EMAIL_ACCOUNT, PASSWORD)
+        print("✅ Gmail login successful")
+    except Exception as e:
+        print(f"❌ Gmail login failed: {e}. Retrying in 30s...")
+        time.sleep(30)
+        return
 
-    # ✅ Get latest mail only
+    mail.select("inbox")
     result, data = mail.search(None, "ALL")
     email_ids = data[0].split()
     if not email_ids:
@@ -69,3 +78,4 @@ if __name__ == "__main__":
     while True:
         check_email()
         time.sleep(30)  # check every 30 seconds
+

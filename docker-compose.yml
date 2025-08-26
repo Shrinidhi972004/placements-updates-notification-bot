@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  placements-bot:
+    build: .
+    container_name: placements-bot
+    env_file:
+      - .env
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'print(\"ok\")'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
