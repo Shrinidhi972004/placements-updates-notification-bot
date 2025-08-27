@@ -2,10 +2,9 @@ import imaplib
 import email
 import requests
 import time
-import os  # ✅ added
+import os  # for environment variables
 
-# --- Config ---
-print("🚀 Script started")
+print("Script started")  # script start
 IMAP_SERVER = "imap.gmail.com"
 EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
@@ -20,18 +19,18 @@ def send_to_group(message: str):
     data = {"chat_id": GROUP_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
         r = requests.post(url, data=data, timeout=10)
-        print(f"➡️ Sent to group {GROUP_CHAT_ID}, Response:", r.json())
+        print(f"Sent to group {GROUP_CHAT_ID}, Response:", r.json())  # sent message
     except Exception as e:
-        print(f"❌ Failed to send to Telegram: {e}")
+        print(f"Failed to send to Telegram: {e}")  # send error
 
 def check_email():
     global last_seen_id
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_ACCOUNT, PASSWORD)
-        print("✅ Gmail login successful")
+        print("Gmail login successful")  # login ok
     except Exception as e:
-        print(f"❌ Gmail login failed: {e}. Retrying in 30s...")
+        print(f"Gmail login failed: {e}. Retrying in 30s...")  # login error
         time.sleep(30)
         return
 
@@ -53,10 +52,10 @@ def check_email():
 
     subject = msg["subject"]
     sender = msg["from"]
-    print(f"🔍 Latest Mail: From={sender}, Subject={subject}")
+    print(f"Latest Mail: From={sender}, Subject={subject}")  # latest mail
 
     if PLACEMENT_OFFICER in sender.lower():
-        print("✅ Placement mail detected! Forwarding to group...")
+        print("Placement mail detected. Forwarding to group...")  # placement mail
         body = ""
         if msg.is_multipart():
             for part in msg.walk():
@@ -66,10 +65,10 @@ def check_email():
         else:
             body = msg.get_payload(decode=True).decode(errors="ignore")
 
-        text = f"📢 *New Placement Mail*\nFrom: `{sender}`\n\n*Subject:* {subject}\n\n{body[:500]}..."
+        text = f"*New Placement Mail*\nFrom: `{sender}`\n\n*Subject:* {subject}\n\n{body[:500]}..."
         send_to_group(text)
     else:
-        print("⏭️ Skipped (sender not matching)")
+        print("Skipped (sender not matching)")  # not placement mail
 
     mail.logout()
 
