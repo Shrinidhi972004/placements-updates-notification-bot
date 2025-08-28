@@ -2,9 +2,11 @@ import imaplib
 import email
 import requests
 import time
-import os  # for environment variables
+import os
+import re
 
-print("Script started")  # script start
+# --- Config ---
+print("Bot started...")
 IMAP_SERVER = "imap.gmail.com"
 EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
@@ -14,23 +16,44 @@ PLACEMENT_OFFICER = os.getenv("PLACEMENT_OFFICER", "placements@sahyadri.edu.in")
 
 last_seen_id = None
 
+def clean_body(body: str) -> str:
+    """Remove all http/https links from the email body"""
+    return re.sub(r'http[s]?://\S+', '[link removed]', body)
+
 def send_to_group(message: str):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": GROUP_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    data = {
+        "chat_id": GROUP_CHAT_ID,
+        "text": message  # no Markdown, plain text
+    }
     try:
         r = requests.post(url, data=data, timeout=10)
-        print(f"Sent to group {GROUP_CHAT_ID}, Response:", r.json())  # sent message
+        print(f"Forwarded to group {GROUP_CHAT_ID}, Response:", r.json())
     except Exception as e:
-        print(f"Failed to send to Telegram: {e}")  # send error
+        print(f"Failed to send to Telegram: {e}")
+
+def extract_safe_text(msg):
+    """Extract only safe text/plain parts, ignore attachments & HTML"""
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            content_type = part.get_content_type()
+            content_disposition = str(part.get("Content-Disposition"))
+            if content_type == "text/plain" and "attachment" not in content_disposition:
+                body += part.get_payload(decode=True).decode(errors="ignore")
+    else:
+        if msg.get_content_type() == "text/plain":
+            body = msg.get_payload(decode=True).decode(errors="ignore")
+    return clean_body(body)
 
 def check_email():
     global last_seen_id
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_ACCOUNT, PASSWORD)
-        print("Gmail login successful")  # login ok
+        print("Logged in to Gmail")
     except Exception as e:
-        print(f"Gmail login failed: {e}. Retrying in 30s...")  # login error
+        print(f"Gmail login failed: {e}. Retrying in 30s...")
         time.sleep(30)
         return
 
@@ -52,23 +75,15 @@ def check_email():
 
     subject = msg["subject"]
     sender = msg["from"]
-    print(f"Latest Mail: From={sender}, Subject={subject}")  # latest mail
+    print(f"New mail from {sender}, Subject: {subject}")
 
     if PLACEMENT_OFFICER in sender.lower():
-        print("Placement mail detected. Forwarding to group...")  # placement mail
-        body = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode(errors="ignore")
-                    break
-        else:
-            body = msg.get_payload(decode=True).decode(errors="ignore")
-
-        text = f"*New Placement Mail*\nFrom: `{sender}`\n\n*Subject:* {subject}\n\n{body[:500]}..."
+        print("Placement mail detected. Forwarding...")
+        body = extract_safe_text(msg)
+        text = f"New Placement Mail\nFrom: {sender}\n\nSubject: {subject}\n\n{body}"
         send_to_group(text)
     else:
-        print("Skipped (sender not matching)")  # not placement mail
+        print("Skipped (not from placement officer)")
 
     mail.logout()
 
@@ -77,4 +92,3 @@ if __name__ == "__main__":
     while True:
         check_email()
         time.sleep(30)  # check every 30 seconds
-
